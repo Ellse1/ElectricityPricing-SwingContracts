@@ -1,0 +1,7 @@
+version: '3.7'
+services:
+  gurobi: 
+    image: gurobi-app-swc
+    volumes:
+      - ./gurobi.lic:/opt/gurobi/gurobi.lic:ro
+      - ./mounted:/app_swc/mounted
