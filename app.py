@@ -54,8 +54,8 @@ def optimize():
             gp.quicksum(
                 # price in $/MWh
                 price_n_j_k_mw_bid[(n, j, k, mw, bid_id)] * 
-                # power in MW
-                mw
+                # choosen power in MW
+                p_n_j_k_mw_bid[(n, j, k, mw, bid_id)]
             for (n, j, k, mw, bid_id) in price_n_j_k_mw_bid)
             -
             # cost for generators, offer prices (if comitted):
@@ -111,10 +111,6 @@ def optimize():
             if(minimum_run_power.get( (int(offer[1]["Masked Asset ID"]), int(offer[1]["Trading Interval"])) ) == None):
                 minimum_run_power[(int(offer[1]["Masked Asset ID"]), int(offer[1]["Trading Interval"]))] = 0
             minimum_run_power[(int(offer[1]["Masked Asset ID"]), int(offer[1]["Trading Interval"]))] += float(offer[1]["Must Take Energy"])
-        
-        print("minimum_run_power")
-        print(minimum_run_power)
-        print()
 
 
         # constraint 2.1 power capacity constraint 7.17
@@ -125,31 +121,35 @@ def optimize():
         gurobi_model.addConstrs( p_g_k[g, k] >= minimum_run_power[(g, k)] * c_g_k[g, k] for (g, k) in minimum_run_power)
 
 
-
         # constraint needed, that the power of a generator is the sum of all power segments of this generator
         gurobi_model.addConstrs( ( p_g_k[generator, timestep] == 
                                 gp.quicksum(p_s_g_k_mw_mwseg[(s, generator, timestep, mw, mwseg)] for (s, g, k, mw, mwseg) in phi_s_g_k_mw_mwseg if generator == g and timestep == k)) 
                             for generator in seller_generator_id_list for timestep in periods)
                         
-                        
 
         # constraint needed: each power_consumption of a buyer is smaller or equal to the possible maximum power_consumption of the buyer in the specific period and mw segment
         gurobi_model.addConstrs( p_n_j_k_mw_bid[(n, j, timestamp, mw, bid_id)] <= mw for (n, j, timestamp, mw, bid_id) in price_n_j_k_mw_bid)
 
+
         # constraint needed: the sum of power consumptions in the power segments is the power consumption of the buyer in the specific period
-        gurobi_model.addConstrs(p_j_k[buyer, timestep] == gp.quicksum(p_n_j_k_mw_bid[(n, j, t, mw, mwseg, bid)] for (n, j, t, mw, mwseg, bid) in price_n_j_k_mw_bid if j == buyer and t == timestep) + lse_fixed_consumption_in_k[(buyer, timestep)] for buyer in lse_id_list for timestep in periods)
+        gurobi_model.addConstrs(p_j_k[buyer, timestep] == (gp.quicksum(p_n_j_k_mw_bid[(n, j, t, mw, bid)] for (n, j, t, mw, bid) in price_n_j_k_mw_bid if j == buyer and t == timestep) + 
+                                                           float(lse_fixed_consumption_in_k[(buyer, timestep)])) 
+                                                    for buyer in lse_id_list for timestep in periods)
+
 
         # constraint for buyers needed? 
         # power consumption in each segment only as big as possible     done
         # fixed power consumption always covered                        done
         # 
 
-
         # constraint for the start up indicator needed
         # it does't work, that the seller did not start now, is used now but was not used in the period before
         gurobi_model.addConstrs(u_g_k[g, k] - c_g_k[g, k] + c_g_k[g, k-1] >= 0 for g in seller_generator_id_list for k in periods[1:])
         gurobi_model.addConstrs((u_g_k[g, 1] == c_g_k[g, 1]) for g in seller_generator_id_list)
+        # constraint, that start up can not be 1 if it was running already
+        gurobi_model.addConstrs(u_g_k[g, k] + c_g_k[g, k-1] <= 1 for g in seller_generator_id_list for k in periods[1:])
 
+        
 
         # wait for the model to update
         gurobi_model.update()
@@ -159,8 +159,8 @@ def optimize():
 
         # print the objective function value
         # print("Obj: ", gurobi_model.objVal)
-        for v in gurobi_model.getVars():
-            print('%s %g' % (v.VarName, v.X))
+        # for v in gurobi_model.getVars():
+        #    print('%s %g' % (v.VarName, v.X))
 
 
         # dispose the model and the environment (to create new one in recursive call)
@@ -191,7 +191,7 @@ def read_csv_data():
     # read data from the csv energy offers file, and skip the first 6 rows (header)
     global seller_data
     # seller_data = pd.read_csv("./data/PreparedSellerData.csv", sep=";", skiprows=4)
-    seller_data = pd.read_csv("./data/test2-PreparedSellerData.csv", sep=";", skiprows=4)
+    seller_data = pd.read_csv("./data/PreparedSellerData.csv", sep=";", skiprows=4)
 
     # remove the first row and the last row (unit of every entry and number of all offers)
     seller_data = seller_data.iloc[1:-1, :]
@@ -214,7 +214,7 @@ def read_csv_data():
     # read data from the csv energy buyer file, and skip the first 4 rows (header)
     global lse_data
     # buyer_data = pd.read_csv("./data/PreparedBuyerData.csv", sep=";", skiprows=4)
-    lse_data = pd.read_csv("./data/test2-PreparedBuyerData.csv", sep=";", skiprows=4)
+    lse_data = pd.read_csv("./data/PreparedBuyerData.csv", sep=";", skiprows=4)
     lse_data = lse_data.dropna(axis=1, how='all')
 
     # remove the first row and the last row (unit of every entry and number of all offers)
@@ -249,7 +249,7 @@ def read_csv_data():
                     if(pd.isna(bid[1]["Segment " + str(n) + " MW"])):
                         break
 
-                    price_n_j_k_mw_bid[(n, j, k, float(bid[1]["Segment " + str(n) + " MW"]),  int(bid[1]["Bid ID"]))] = float(bid[1]["Segment " + str(n) + " Price"])
+                    price_n_j_k_mw_bid[(n, j, k, float(bid[1]["Segment " + str(n) + " MW"]), int(bid[1]["Bid ID"]))] = float(bid[1]["Segment " + str(n) + " Price"])
 
 
     # create the offer prices [start up costs, no load costs]
@@ -286,8 +286,9 @@ def read_csv_data():
 
 # Start the main app
 if __name__ == "__main__":
-    # optimize()
+    optimize()
     
+    '''
     # creating plotting data
     xaxis =[1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
     yaxis =[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -300,4 +301,5 @@ if __name__ == "__main__":
     # saving the file.Make sure you 
     # use savefig() before show()
     print("Saving file")
-    plt.savefig("./mounted/squares.png")
+    plt.savefig("./graphs/squares.png")
+    '''

@@ -4,4 +4,4 @@ services:
     image: gurobi-app-swc
     volumes:
       - ./gurobi.lic:/opt/gurobi/gurobi.lic:ro
-      - ./mounted:/app_swc/mounted
+      - ./graphs:/app_swc/graphs
