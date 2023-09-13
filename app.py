@@ -8,8 +8,8 @@ import numpy as np
 
 
 # global variables
-seller_data = "./data/test1-PreparedSellerData.csv"
-buyer_data = "./data/test1-PreparedBuyerData.csv"
+seller_data = "./data/PreparedSellerData.csv"
+buyer_data = "./data/PreparedBuyerData.csv"
 
 
 # All keys of beta_b_bid_t_mw_mwsegm as numbers not string representation
@@ -144,10 +144,10 @@ def optimize():
         gurobi_model.optimize()
 
 
-        for v in gurobi_model.getVars():
-            print('%s %g' % (v.VarName, v.X))
+        # for v in gurobi_model.getVars():
+            # print('%s %g' % (v.VarName, v.X))
 
-
+        print("Optimization finished")
         # dispose the model and the environment (to create new one in recursive call)
         gurobi_model.dispose()
         gp.disposeDefaultEnv()
