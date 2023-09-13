@@ -19,13 +19,11 @@ def optimize():
     # read data from the csv energy seller file, and the csv energy buyer file
     read_csv_data()
 
-    try:
-        
+    try:        
         # Create a new model
         gurobi_model = gp.Model("mip1")
         
         # Create variables
-
         # power dispatch level for every lse j with variable bids for every period
         p_j_k = gurobi_model.addVars(lse_id_list, periods, lb=0, name="p_j_k")
 
@@ -33,8 +31,6 @@ def optimize():
         p_n_j_k_mw_bid = dict()
         for lse_bid in price_n_j_k_mw_bid.keys():
             p_n_j_k_mw_bid[lse_bid] = gurobi_model.addVar(lb=0, vtype = GRB.CONTINUOUS, name="p_n_j_k_mw_bid_" + str(lse_bid))
-
-
 
 
         # contract clearing indicator for every generator g, every period
@@ -50,7 +46,6 @@ def optimize():
 
         # start-up indicator for every generator, every period
         u_g_k = gurobi_model.addVars(seller_generator_id_list, periods, vtype=GRB.BINARY, name="u_g_k")
-
         
         # set objective function
         gurobi_model.setObjective(
@@ -86,17 +81,6 @@ def optimize():
 
         # add constraints
 
-        # find all fixed power loads of the buyers in the specific period
-        lse_fixed_consumption_in_k = dict()
-        for lse_bid in lse_data.iterrows():
-            #1 fixed power
-            # if not in dict jet
-            if(lse_fixed_consumption_in_k.get( (int(lse_bid[1]["Masked Lead Participant ID"]), int(lse_bid[1]["Hour"])) ) == None):
-                lse_fixed_consumption_in_k[( int(lse_bid[1]["Masked Lead Participant ID"]), int(lse_bid[1]["Hour"]) )] = 0
-            # only sum up if FIXED
-            if(lse_bid[1]["Bid Type"] == "FIXED" and lse_bid[1]["Segment 1 MW"] != None and lse_bid[1]["Segment 1 MW"] != ""):
-                lse_fixed_consumption_in_k[(int(lse_bid[1]["Masked Lead Participant ID"]), int(lse_bid[1]["Hour"]))] += float(lse_bid[1]["Segment 1 MW"])
-            
         # constraint 1: power balance constraint (7.14) and on page 95, formula 9.5 and 9.6
         # power production = fixed power consumption + power consumption from bids 
                                 # power production 
@@ -140,7 +124,6 @@ def optimize():
                                                            float(lse_fixed_consumption_in_k[(buyer, timestep)])) 
                                                     for buyer in lse_id_list for timestep in periods)
 
-
         # constraint for buyers needed? 
         # power consumption in each segment only as big as possible     done
         # fixed power consumption always covered                        done
@@ -153,7 +136,6 @@ def optimize():
         # constraint, that start up can not be 1 if it was running already
         gurobi_model.addConstrs(u_g_k[g, k] + c_g_k[g, k-1] <= 1 for g in seller_generator_id_list for k in periods[1:])
 
-        
 
         # wait for the model to update
         gurobi_model.update()
@@ -193,7 +175,7 @@ def read_csv_data():
  
     read_and_prepare_buyer_data()
 
-    read_and_prepare_seller_data
+    read_and_prepare_seller_data()
 
 
 
@@ -237,6 +219,20 @@ def read_and_prepare_buyer_data():
                         break
 
                     price_n_j_k_mw_bid[(n, j, k, float(bid[1]["Segment " + str(n) + " MW"]), int(bid[1]["Bid ID"]))] = float(bid[1]["Segment " + str(n) + " Price"])
+
+
+    # find all fixed power loads of the buyers in the specific period
+    global lse_fixed_consumption_in_k
+    lse_fixed_consumption_in_k = dict()
+    for lse_bid in lse_data.iterrows():
+        #1 fixed power
+        # if not in dict jet
+        if(lse_fixed_consumption_in_k.get( (int(lse_bid[1]["Masked Lead Participant ID"]), int(lse_bid[1]["Hour"])) ) == None):
+            lse_fixed_consumption_in_k[( int(lse_bid[1]["Masked Lead Participant ID"]), int(lse_bid[1]["Hour"]) )] = 0
+        # only sum up if FIXED
+        if(lse_bid[1]["Bid Type"] == "FIXED" and lse_bid[1]["Segment 1 MW"] != None and lse_bid[1]["Segment 1 MW"] != ""):
+            lse_fixed_consumption_in_k[(int(lse_bid[1]["Masked Lead Participant ID"]), int(lse_bid[1]["Hour"]))] += float(lse_bid[1]["Segment 1 MW"])
+        
 
 
 def read_and_prepare_seller_data():
@@ -295,8 +291,6 @@ def read_and_prepare_seller_data():
                     if(pd.isna(offer[1]["Segment " + str(mw_segment) + " MW"])):
                         break
                     phi_s_g_k_mw_mwseg[(s, int(offer[1]["Masked Asset ID"]), k, float(offer[1]["Segment " + str(mw_segment) + " MW"]), mw_segment)] = offer[1]["Segment " + str(mw_segment) + " Price"]
-
-
 
 # Start the main app
 if __name__ == "__main__":
