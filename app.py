@@ -7,6 +7,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+# global variables
+seller_data = "./data/test1-PreparedSellerData.csv"
+buyer_data = "./data/test1-PreparedBuyerData.csv"
+
 
 # All keys of beta_b_bid_t_mw_mwsegm as numbers not string representation
 
@@ -157,10 +161,9 @@ def optimize():
         # optimize model
         gurobi_model.optimize()
 
-        # print the objective function value
-        # print("Obj: ", gurobi_model.objVal)
-        # for v in gurobi_model.getVars():
-        #    print('%s %g' % (v.VarName, v.X))
+
+        for v in gurobi_model.getVars():
+            print('%s %g' % (v.VarName, v.X))
 
 
         # dispose the model and the environment (to create new one in recursive call)
@@ -187,34 +190,18 @@ def optimize():
     
 
 def read_csv_data():
-    # READ THE DATA FROM SELLERS FILE
-    # read data from the csv energy offers file, and skip the first 6 rows (header)
-    global seller_data
-    # seller_data = pd.read_csv("./data/PreparedSellerData.csv", sep=";", skiprows=4)
-    seller_data = pd.read_csv("./data/PreparedSellerData.csv", sep=";", skiprows=4)
+ 
+    read_and_prepare_buyer_data()
 
-    # remove the first row and the last row (unit of every entry and number of all offers)
-    seller_data = seller_data.iloc[1:-1, :]
-
-    seller_data["Masked Lead Participant ID"] = seller_data["Masked Lead Participant ID"].astype(int)
-    seller_data["Masked Asset ID"] = seller_data["Masked Asset ID"].astype(int)
-    seller_data["Trading Interval"] = seller_data["Trading Interval"].astype(int)
-
-    # create a list of all the sellers (soller_ids)
-    global seller_id_list
-    seller_id_list = seller_data["Masked Lead Participant ID"].unique().tolist()
-    seller_id_list = sorted(set([int(x) for x in seller_id_list]))
-
-    global seller_generator_id_list
-    seller_generator_id_list = seller_data["Masked Asset ID"].unique().tolist()
-    seller_generator_id_list = sorted(set([int(x) for x in seller_generator_id_list]))
+    read_and_prepare_seller_data
 
 
+
+def read_and_prepare_buyer_data():
     # READ THE DATA FROM BUYERS FILE (Load Serving Entities LSEs)
     # read data from the csv energy buyer file, and skip the first 4 rows (header)
     global lse_data
-    # buyer_data = pd.read_csv("./data/PreparedBuyerData.csv", sep=";", skiprows=4)
-    lse_data = pd.read_csv("./data/PreparedBuyerData.csv", sep=";", skiprows=4)
+    lse_data = pd.read_csv(buyer_data, sep=";", skiprows=4)
     lse_data = lse_data.dropna(axis=1, how='all')
 
     # remove the first row and the last row (unit of every entry and number of all offers)
@@ -252,6 +239,31 @@ def read_csv_data():
                     price_n_j_k_mw_bid[(n, j, k, float(bid[1]["Segment " + str(n) + " MW"]), int(bid[1]["Bid ID"]))] = float(bid[1]["Segment " + str(n) + " Price"])
 
 
+def read_and_prepare_seller_data():
+   # READ THE DATA FROM SELLERS FILE
+    # read data from the csv energy offers file, and skip the first 6 rows (header)
+    global seller_data
+    seller_data = pd.read_csv(seller_data, sep=";", skiprows=4)
+
+    # remove the first row and the last row (unit of every entry and number of all offers)
+    seller_data = seller_data.iloc[1:-1, :]
+
+    seller_data["Masked Lead Participant ID"] = seller_data["Masked Lead Participant ID"].astype(int)
+    seller_data["Masked Asset ID"] = seller_data["Masked Asset ID"].astype(int)
+    seller_data["Trading Interval"] = seller_data["Trading Interval"].astype(int)
+
+    # create a list of all the sellers (soller_ids)
+    global seller_id_list
+    seller_id_list = seller_data["Masked Lead Participant ID"].unique().tolist()
+    seller_id_list = sorted(set([int(x) for x in seller_id_list]))
+
+    global seller_generator_id_list
+    seller_generator_id_list = seller_data["Masked Asset ID"].unique().tolist()
+    seller_generator_id_list = sorted(set([int(x) for x in seller_generator_id_list]))
+
+
+
+
     # create the offer prices [start up costs, no load costs]
     global alpha_g_t
     alpha_g_t = dict()
@@ -283,6 +295,8 @@ def read_csv_data():
                     if(pd.isna(offer[1]["Segment " + str(mw_segment) + " MW"])):
                         break
                     phi_s_g_k_mw_mwseg[(s, int(offer[1]["Masked Asset ID"]), k, float(offer[1]["Segment " + str(mw_segment) + " MW"]), mw_segment)] = offer[1]["Segment " + str(mw_segment) + " Price"]
+
+
 
 # Start the main app
 if __name__ == "__main__":
